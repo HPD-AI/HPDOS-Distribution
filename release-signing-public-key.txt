@@ -1,0 +1,3 @@
+algorithm=Ed25519
+format=SubjectPublicKeyInfo-DER-base64
+key=MCowBQYDK2VwAyEAztdYvyHImGLj17+L8GaPaIno/jv9MBx3iQKPkqKrQNI=

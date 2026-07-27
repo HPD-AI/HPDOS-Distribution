@@ -35,6 +35,7 @@ The HPD OS Desktop installation manager will consume the same release assets.
 - `install-hpdos.sh` and `install-hpdos.ps1`: user-scoped installers.
 - `uninstall-hpdos.sh` and `uninstall-hpdos.ps1`: uninstallers.
 - `docs/release-contract.md`: public release naming and payload contract.
+- `release-signing-public-key.txt`: pinned Ed25519 release verification key.
 - GitHub Releases: immutable compiled HPDOS payloads and integrity metadata.
 
 This repository must never contain HPD-OS product source, repository
