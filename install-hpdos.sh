@@ -128,27 +128,27 @@ path_has() {
 if path_has "$BIN_DIR"; then
   printf 'Run: hpdos\n'
 else
-  printf 'WARNING: %s is not on your PATH, so "hpdos" will not be found.\n' "$BIN_DIR"
+  printf 'WARNING: %s is not on your PATH, so "hpdos" will not be found yet.\n' "$BIN_DIR"
+
   rc_file=""
   case "${SHELL:-}" in
     *zsh) rc_file="$HOME/.zshrc" ;;
     *bash) rc_file="$HOME/.bash_profile" ;;
+    *fish) rc_file="$HOME/.config/fish/config.fish" ;;
+    *) rc_file="$HOME/.profile" ;;
   esac
-  if [ -n "$rc_file" ] && [ -t 0 ]; then
-    printf 'Add %s to PATH in %s? [y/N] ' "$BIN_DIR" "$rc_file"
-    read answer
-    case "$answer" in
-      y|Y|yes)
-        printf '\n# added by the HPDOS installer\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$rc_file"
-        printf 'Updated %s. Open a new terminal or run: source %s\n' "$rc_file" "$rc_file"
-        ;;
-      *)
-        printf 'To use hpdos now, run: export PATH="%s:$PATH"\n' "$BIN_DIR"
-        printf 'To persist it, add that line to your shell profile.\n'
-        ;;
-    esac
+
+  if [ -w "$rc_file" ] || { [ ! -e "$rc_file" ] && [ -w "$(dirname "$rc_file")" ]; }; then
+    if grep -qF "export PATH=\"$BIN_DIR:\$PATH\"" "$rc_file" 2>/dev/null; then
+      printf 'PATH export already present in %s\n' "$rc_file"
+    else
+      printf '\n# added by the HPDOS installer\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$rc_file"
+      printf 'Added %s to your PATH in %s\n' "$BIN_DIR" "$rc_file"
+    fi
+    printf 'Open a new terminal (or run: source %s) then use: hpdos\n' "$rc_file"
+    printf 'For this session now, run: export PATH="%s:$PATH"\n' "$BIN_DIR"
   else
-    printf 'To use hpdos, add %s to your PATH, e.g.:\n' "$BIN_DIR"
+    printf 'Could not write a shell profile. To use hpdos, add %s to your PATH:\n' "$BIN_DIR"
     printf '  export PATH="%s:$PATH"\n' "$BIN_DIR"
   fi
 fi
