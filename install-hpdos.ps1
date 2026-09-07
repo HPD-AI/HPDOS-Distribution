@@ -78,7 +78,22 @@ try {
     Set-Content -LiteralPath $temporaryLauncher -Value "@echo off`r`n`"$target\\hpdos.exe`" %*`r`n" -NoNewline
     Move-Item -LiteralPath $temporaryLauncher -Destination $launcher -Force
 
-    Write-Host "HPDOS $Version installed. Run: $launcher"
+    Write-Host ""
+    Write-Host "HPDOS $Version installed."
+    Write-Host "Launcher: $launcher"
+
+    if (Test-Path -LiteralPath $launcher) {
+        $onPath = ($env:Path -split ';' | Where-Object { $_ -and [string]::Equals($_.TrimEnd('\'), $BinDirectory.TrimEnd('\'), [System.StringComparison]::OrdinalIgnoreCase) })
+        if ($onPath) {
+            Write-Host "Run: hpdos"
+        } else {
+            Write-Host "WARNING: $BinDirectory is not on your PATH, so 'hpdos' will not be found."
+            Write-Host "To use it in this session, run:"
+            Write-Host "  `$env:Path = `"$BinDirectory;`$env:Path`""
+            Write-Host "To persist it for future sessions, run:"
+            Write-Host "  [Environment]::SetEnvironmentVariable('Path', `"$BinDirectory;`" + [Environment]::GetEnvironmentVariable('Path', 'User'), 'User')"
+        }
+    }
 } finally {
     if (Test-Path -LiteralPath $temporary) {
         Remove-Item -LiteralPath $temporary -Recurse -Force

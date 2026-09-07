@@ -115,4 +115,40 @@ printf '#!/bin/sh\nexec "%s/current/hpdos" "$@"\n' "$INSTALL_ROOT" > "$temporary
 chmod +x "$temporary_launcher"
 mv "$temporary_launcher" "$LAUNCHER"
 
-printf 'HPDOS %s installed. Run: %s\n' "$VERSION" "$LAUNCHER"
+printf '\nHPDOS %s installed.\n' "$VERSION"
+printf 'Launcher: %s\n' "$LAUNCHER"
+
+path_has() {
+  case ":$PATH:" in
+    *":$1:"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if path_has "$BIN_DIR"; then
+  printf 'Run: hpdos\n'
+else
+  printf 'WARNING: %s is not on your PATH, so "hpdos" will not be found.\n' "$BIN_DIR"
+  rc_file=""
+  case "${SHELL:-}" in
+    *zsh) rc_file="$HOME/.zshrc" ;;
+    *bash) rc_file="$HOME/.bash_profile" ;;
+  esac
+  if [ -n "$rc_file" ] && [ -t 0 ]; then
+    printf 'Add %s to PATH in %s? [y/N] ' "$BIN_DIR" "$rc_file"
+    read answer
+    case "$answer" in
+      y|Y|yes)
+        printf '\n# added by the HPDOS installer\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$rc_file"
+        printf 'Updated %s. Open a new terminal or run: source %s\n' "$rc_file" "$rc_file"
+        ;;
+      *)
+        printf 'To use hpdos now, run: export PATH="%s:$PATH"\n' "$BIN_DIR"
+        printf 'To persist it, add that line to your shell profile.\n'
+        ;;
+    esac
+  else
+    printf 'To use hpdos, add %s to your PATH, e.g.:\n' "$BIN_DIR"
+    printf '  export PATH="%s:$PATH"\n' "$BIN_DIR"
+  fi
+fi

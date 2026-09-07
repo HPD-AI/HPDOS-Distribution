@@ -26,7 +26,29 @@ The installers:
 - download immutable assets from this repository's GitHub Releases;
 - verify the published SHA-256 digest;
 - install the TUI and its matching backend side by side;
-- activate the installed version through a user-scoped `current` pointer.
+- activate the installed version through a user-scoped `current` pointer;
+- place a `hpdos` launcher in `~/.local/bin` (macOS/Linux) or
+  `%LOCALAPPDATA%\HPDOS\bin` (Windows).
+
+### PATH
+
+The launcher directory is not always on `PATH`. If `hpdos` reports
+`command not found`, add the launcher directory to your `PATH`:
+
+macOS / Linux (`zsh`):
+```sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+hpdos
+```
+
+Windows (PowerShell, current user, persists for future sessions):
+```powershell
+[Environment]::SetEnvironmentVariable('Path', "$env:LOCALAPPDATA\HPDOS\bin;" + [Environment]::GetEnvironmentVariable('Path', 'User'), 'User')
+```
+
+The installers detect a missing launcher directory and print these
+instructions (and offer to add it) when applicable.
 
 The HPD OS Desktop installation manager will consume the same release assets.
 
