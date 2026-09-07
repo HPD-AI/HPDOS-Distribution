@@ -24,11 +24,10 @@ $rid = switch ($architecture) {
 }
 
 if (-not $Version) {
-    $releases = Invoke-RestMethod -Headers @{ "User-Agent" = "hpdos-installer" } `
-        -Uri "https://api.github.com/repos/$Repository/releases?per_page=30"
-    $release = $releases | Where-Object { $_.tag_name -like "hpdos-v*" } | Select-Object -First 1
-    if (-not $release) { throw "No HPDOS release is available." }
-    $Version = Normalize-Version $release.tag_name
+    $latest = Invoke-RestMethod -Headers @{ "User-Agent" = "hpdos-installer" } `
+        -Uri "https://api.github.com/repos/$Repository/releases/latest"
+    if ($latest.tag_name -notlike "hpdos-v*") { throw "No HPDOS release is available." }
+    $Version = Normalize-Version $latest.tag_name
 } else {
     $Version = Normalize-Version $Version
 }

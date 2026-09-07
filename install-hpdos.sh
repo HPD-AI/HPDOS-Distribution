@@ -69,9 +69,9 @@ normalize_version() {
 TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/hpdos-install.XXXXXX")
 
 if [ -z "$REQUESTED_VERSION" ]; then
-  releases="$TEMP_DIR/releases.json"
-  download "https://api.github.com/repos/$REPOSITORY/releases?per_page=30" "$releases"
-  tag=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(hpdos-v[^"]*\)".*/\1/p' "$releases" | head -n 1)
+  latest="$TEMP_DIR/latest.json"
+  download "https://api.github.com/repos/$REPOSITORY/releases/latest" "$latest" || fail "No HPDOS release is available."
+  tag=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(hpdos-v[^"]*\)".*/\1/p' "$latest" | head -n 1)
   [ -n "$tag" ] || fail "No HPDOS release is available."
   VERSION=$(normalize_version "$tag")
 else
