@@ -46,7 +46,7 @@ try {
 
     $checksumLine = Get-Content $checksums | Where-Object { $_ -match "(^|[ *])$([regex]::Escape($asset))$" } | Select-Object -First 1
     if (-not $checksumLine) { throw "$asset is absent from SHA256SUMS." }
-    $expected = ($checksumLine -split '\s+')[0].ToLowerInvariant()
+    $expected = ($checksumLine -split '\\s+')[0].ToLowerInvariant()
     $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
     if ($actual -ne $expected) { throw "Checksum mismatch." }
 
@@ -83,16 +83,29 @@ try {
     Write-Host "Launcher: $launcher"
 
     if (Test-Path -LiteralPath $launcher) {
-        $onPath = ($env:Path -split ';' | Where-Object { $_ -and [string]::Equals($_.TrimEnd('\'), $BinDirectory.TrimEnd('\'), [System.StringComparison]::OrdinalIgnoreCase) })
-        if ($onPath) {
-            Write-Host "Run: hpdos"
+        $onPath = ($env:Path -split ';' | Where-Object { $_ -and [string]::Equals($_.TrimEnd('\\'), $BinDirectory.TrimEnd('\\'), [System.StringComparison]::OrdinalIgnoreCase) })
+        if (-not $onPath) {
+            Write-Host "Adding $BinDirectory to user PATH..."
+            [Environment]::SetEnvironmentVariable(
+                'Path',
+                "$BinDirectory;" + [Environment]::GetEnvironmentVariable('Path', 'User'),
+                'User'
+            )
+            Write-Host "✓ Added to PATH"
         } else {
-            Write-Host "WARNING: $BinDirectory is not on your PATH, so 'hpdos' will not be found."
-            Write-Host "To use it in this session, run:"
-            Write-Host "  `$env:Path = `"$BinDirectory;`$env:Path`""
-            Write-Host "To persist it for future sessions, run:"
-            Write-Host "  [Environment]::SetEnvironmentVariable('Path', `"$BinDirectory;`" + [Environment]::GetEnvironmentVariable('Path', 'User'), 'User')"
+            Write-Host "✓ $BinDirectory already on PATH"
         }
+        Write-Host "Run: hpdos"
+    }
+
+    # Verify hpdos is callable
+    $env:Path = "$BinDirectory;$env:Path"
+    try {
+        & $launcher --version | Out-Null
+        Write-Host "✓ Verified: hpdos command is working"
+    } catch {
+        Write-Warning "Failed to verify hpdos command: $_"
+        Write-Warning "You may need to restart PowerShell for PATH changes to take effect"
     }
 } finally {
     if (Test-Path -LiteralPath $temporary) {
