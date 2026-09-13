@@ -1,0 +1,94 @@
+name: Test HPDOS Installation
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'install-hpdos.ps1'
+
+jobs:
+  test-windows-install:
+    name: Test Installation on Windows
+    strategy:
+      matrix:
+        os: [windows-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      
+      - name: Run installer (latest release)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Host "Installing HPDOS from main branch installer..."
+          irm https://raw.githubusercontent.com/${{ github.repository }}/main/install-hpdos.ps1 | iex
+      
+      - name: Verify bin directory exists
+        shell: powershell
+        run: |
+          $hpdosBinPath = Join-Path $env:LOCALAPPDATA "HPDOS\bin"
+          if (-not (Test-Path $hpdosBinPath)) {
+            throw "HPDOS bin directory not found at $hpdosBinPath"
+          }
+          Write-Host "✓ HPDOS bin directory exists: $hpdosBinPath"
+      
+      - name: Verify hpdos.cmd launcher exists
+        shell: powershell
+        run: |
+          $hpdosCmd = Join-Path $env:LOCALAPPDATA "HPDOS\bin\hpdos.cmd"
+          if (-not (Test-Path $hpdosCmd)) {
+            throw "hpdos.cmd not found at $hpdosCmd"
+          }
+          Write-Host "✓ hpdos.cmd launcher exists"
+      
+      - name: Test PATH environment variable
+        shell: powershell
+        run: |
+          $hpdosBinPath = Join-Path $env:LOCALAPPDATA "HPDOS\bin"
+          
+          # Get the user PATH (persistent)
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          $pathEntries = $userPath -split ';'
+          $found = $pathEntries | Where-Object { $_ -and [string]::Equals($_.TrimEnd('\'), $hpdosBinPath.TrimEnd('\'), [System.StringComparison]::OrdinalIgnoreCase) }
+          
+          if (-not $found) {
+            throw "HPDOS bin directory not found in user PATH. Expected: $hpdosBinPath"
+          }
+          
+          Write-Host "✓ $hpdosBinPath is in user PATH"
+      
+      - name: Test hpdos command execution
+        shell: powershell
+        run: |
+          $hpdosBinPath = Join-Path $env:LOCALAPPDATA "HPDOS\bin"
+          $hpdosCmd = Join-Path $hpdosBinPath "hpdos.cmd"
+          
+          # Add to current session PATH if needed
+          if (-not ($env:Path -like "*$hpdosBinPath*")) {
+            $env:Path = "$hpdosBinPath;$env:Path"
+          }
+          
+          Write-Host "Testing direct launcher execution..."
+          try {
+            $output = & $hpdosCmd --version 2>&1
+            Write-Host "✓ hpdos --version executed successfully"
+            Write-Host "Output: $output"
+          } catch {
+            throw "Failed to execute hpdos.cmd: $_"
+          }
+      
+      - name: Summary
+        shell: powershell
+        if: success()
+        run: |
+          Write-Host ""
+          Write-Host "=== HPDOS Installation Test Passed ===" -ForegroundColor Green
+          Write-Host "✓ Installation completed successfully"
+          Write-Host "✓ Launcher created and verified"
+          Write-Host "✓ PATH environment variable updated"
+          Write-Host "✓ HPDOS command is callable"
