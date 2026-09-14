@@ -39,18 +39,36 @@ function Normalize-Version([string]$Value) {
     return $normalized
 }
 
-# Detect Windows architecture.
-$architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+# -------------------------------------------------------------------------
+# Detect Windows architecture without RuntimeInformation.
+#
+# PROCESSOR_ARCHITEW6432 is populated when a 32-bit process is running on
+# 64-bit Windows, so check it before PROCESSOR_ARCHITECTURE.
+# -------------------------------------------------------------------------
 
-$rid = switch ($architecture) {
-    "X64"   { "win-x64" }
-    "Arm64" { "win-arm64" }
-    default {
-        throw "Unsupported Windows architecture: $architecture"
-    }
+$processArchitecture = $env:PROCESSOR_ARCHITECTURE
+$wowArchitecture = $env:PROCESSOR_ARCHITEW6432
+
+if (
+    $processArchitecture -eq "ARM64" -or
+    $wowArchitecture -eq "ARM64"
+) {
+    $rid = "win-arm64"
+}
+elseif (
+    $processArchitecture -eq "AMD64" -or
+    $wowArchitecture -eq "AMD64"
+) {
+    $rid = "win-x64"
+}
+else {
+    throw "Unsupported Windows architecture: PROCESSOR_ARCHITECTURE=$processArchitecture, PROCESSOR_ARCHITEW6432=$wowArchitecture"
 }
 
+# -------------------------------------------------------------------------
 # Determine version.
+# -------------------------------------------------------------------------
+
 if (-not $Version) {
     $latest = Invoke-RestMethod `
         -Headers @{ "User-Agent" = "hpdos-installer" } `
@@ -61,7 +79,8 @@ if (-not $Version) {
     }
 
     $Version = Normalize-Version $latest.tag_name
-} else {
+}
+else {
     $Version = Normalize-Version $Version
 }
 
@@ -77,9 +96,9 @@ $archive = Join-Path $temporary $asset
 $checksums = Join-Path $temporary "SHA256SUMS"
 
 try {
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Download
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     New-Item `
         -ItemType Directory `
@@ -99,9 +118,9 @@ try {
         -Uri "$base/SHA256SUMS" `
         -OutFile $checksums
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Verify checksum
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     $checksumLine = Get-Content $checksums |
         Where-Object {
@@ -113,8 +132,7 @@ try {
         throw "$asset is absent from SHA256SUMS."
     }
 
-    # IMPORTANT:
-    # Use \s+ rather than \\s+.
+    # IMPORTANT: \s+ is intentional.
     $expected = ($checksumLine -split '\s+')[0].ToLowerInvariant()
 
     $actual = (
@@ -129,9 +147,9 @@ try {
 
     Write-Host "[OK] Download checksum verified."
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Prepare installation directories
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     $versions = Join-Path $InstallRoot "versions"
 
@@ -153,9 +171,9 @@ try {
         -Path $BinDirectory |
         Out-Null
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Extract release
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     Write-Host "Installing HPDOS $Version..."
 
@@ -163,9 +181,9 @@ try {
         -LiteralPath $archive `
         -DestinationPath $staging
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Validate release contents
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     foreach ($required in @(
         "hpdos.exe",
@@ -177,9 +195,9 @@ try {
         }
     }
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Install version
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     if (Test-Path -LiteralPath $target) {
         Write-Host "Version $Version is already installed."
@@ -188,15 +206,16 @@ try {
             -LiteralPath $staging `
             -Recurse `
             -Force
-    } else {
+    }
+    else {
         Move-Item `
             -LiteralPath $staging `
             -Destination $target
     }
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Update current version pointer
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     $currentFile = Join-Path $InstallRoot "current.txt"
     $temporaryCurrent = "$currentFile.tmp"
@@ -211,9 +230,9 @@ try {
         -Destination $currentFile `
         -Force
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Create launcher
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     $launcher = Join-Path $BinDirectory "hpdos.cmd"
     $temporaryLauncher = "$launcher.tmp"
@@ -230,9 +249,9 @@ try {
         -Destination $launcher `
         -Force
 
-    # -------------------------------------------------------------------------
-    # Configure PATH
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
+    # Configure persistent user PATH
+    # ---------------------------------------------------------------------
 
     Write-Host ""
     Write-Host "HPDOS $Version installed."
@@ -240,7 +259,6 @@ try {
 
     $normalizedBin = $BinDirectory.TrimEnd('\')
 
-    # Read the user's persistent PATH.
     $userPath = [Environment]::GetEnvironmentVariable(
         "Path",
         "User"
@@ -255,7 +273,6 @@ try {
             }
     }
 
-    # Check whether the bin directory is already in the persistent PATH.
     $persistentPathMatch = $userPathEntries |
         Where-Object {
             [string]::Equals(
@@ -268,7 +285,8 @@ try {
     if (-not $persistentPathMatch) {
         if ($userPath) {
             $newUserPath = "$normalizedBin;$userPath"
-        } else {
+        }
+        else {
             $newUserPath = $normalizedBin
         }
 
@@ -279,17 +297,22 @@ try {
         )
 
         Write-Host "[OK] Added $normalizedBin to your user PATH."
-    } else {
+    }
+    else {
         Write-Host "[OK] $normalizedBin is already in your user PATH."
     }
 
-    # -------------------------------------------------------------------------
-    # Update the CURRENT PowerShell process PATH.
+    # ---------------------------------------------------------------------
+    # Update the current PowerShell process PATH.
     #
-    # This is important because changing the persistent user PATH does not
-    # automatically update the environment of the PowerShell process that
-    # launched this installer.
-    # -------------------------------------------------------------------------
+    # This works when the installer is executed directly in the current
+    # PowerShell process, including:
+    #
+    #   irm ... | iex
+    #
+    # It cannot modify the environment of a parent PowerShell process when
+    # this script is launched through a separate powershell.exe process.
+    # ---------------------------------------------------------------------
 
     $currentPathEntries = $env:Path -split ';'
 
@@ -306,9 +329,9 @@ try {
         $env:Path = "$normalizedBin;$env:Path"
     }
 
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     # Verify launcher
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     Write-Host ""
 
@@ -331,8 +354,8 @@ try {
         Write-Host "  hpdos doctor"
         Write-Host "  hpdos backend"
         Write-Host "  hpdos service status"
-
-    } catch {
+    }
+    catch {
         Write-Warning "HPDOS was installed, but this PowerShell session cannot find 'hpdos'."
 
         Write-Host ""
@@ -347,10 +370,11 @@ try {
         Write-Host "New PowerShell windows will automatically have 'hpdos' available."
     }
 
-} finally {
-    # -------------------------------------------------------------------------
+}
+finally {
+    # ---------------------------------------------------------------------
     # Cleanup
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     if (Test-Path -LiteralPath $temporary) {
         Remove-Item `
